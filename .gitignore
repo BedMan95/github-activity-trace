@@ -5,11 +5,13 @@
 .env.development
 .app-settings.json
 
-# Next.js
+# Next.js & Electron
 .next/
 out/
 build/
 dist/
+dist-electron/
+dist-desktop/
 
 # Dependencies
 node_modules/

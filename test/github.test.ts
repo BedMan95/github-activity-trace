@@ -16,6 +16,13 @@ import {
 } from '../services/github';
 import { Octokit } from '@octokit/rest';
 
+// Mock settings module
+vi.mock('../lib/settings', () => ({
+  getEffectiveGitHubToken: vi.fn(),
+}));
+
+import { getEffectiveGitHubToken } from '../lib/settings';
+
 describe('GitHubService', () => {
   const validToken = 'ghp_test_token_1234567890';
 
@@ -257,6 +264,8 @@ describe('Factory Functions', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    vi.clearAllMocks();
+    vi.mocked(getEffectiveGitHubToken).mockReturnValue(undefined);
   });
 
   afterEach(() => {
@@ -264,19 +273,28 @@ describe('Factory Functions', () => {
   });
 
   describe('createGitHubService', () => {
-    it('should create service when GITHUB_TOKEN is set', () => {
+    it('should create service when GITHUB_TOKEN is set in env', () => {
       process.env.GITHUB_TOKEN = 'test-token';
       const service = createGitHubService();
       expect(service).toBeInstanceOf(GitHubService);
     });
 
-    it('should throw when GITHUB_TOKEN is not set', () => {
+    it('should create service when token is in settings', () => {
       delete process.env.GITHUB_TOKEN;
+      vi.mocked(getEffectiveGitHubToken).mockReturnValue('settings-token');
+      const service = createGitHubService();
+      expect(service).toBeInstanceOf(GitHubService);
+    });
+
+    it('should throw when GITHUB_TOKEN is not set anywhere', () => {
+      delete process.env.GITHUB_TOKEN;
+      vi.mocked(getEffectiveGitHubToken).mockReturnValue(undefined);
       expect(() => createGitHubService()).toThrow('GITHUB_TOKEN environment variable is not configured');
     });
 
-    it('should throw when GITHUB_TOKEN is empty', () => {
+    it('should throw when GITHUB_TOKEN is empty string in env and no settings', () => {
       process.env.GITHUB_TOKEN = '';
+      vi.mocked(getEffectiveGitHubToken).mockReturnValue('');
       expect(() => createGitHubService()).toThrow('GITHUB_TOKEN environment variable is not configured');
     });
   });

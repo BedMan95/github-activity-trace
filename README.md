@@ -30,8 +30,8 @@ Salin file template atau buat file `.env.local` di direktori utama:
 # Scopes: repo, user:email, read:user
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 
-# Port server (opsional, bawaan: 3001)
-PORT=3001
+# Port server (opsional, bawaan: 3002)
+PORT=3002
 
 # Konfigurasi OpenAI-compatible untuk rangkuman tugas (Opsional)
 # Jika dikosongkan, tugas akan otomatis menggunakan daftar poin pesan komit
