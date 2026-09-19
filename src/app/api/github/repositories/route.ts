@@ -143,13 +143,23 @@ function createServiceErrorResponse(message: string, status: number = 500): Next
 // Cache Functions
 // ============================================
 
+function getTokenCacheKey(): string {
+  const token = process.env.GITHUB_TOKEN || '';
+  if (!token) return 'default';
+  let hash = 0;
+  for (let i = 0; i < token.length; i++) {
+    hash = (hash << 5) - hash + token.charCodeAt(i);
+    hash |= 0;
+  }
+  return String(hash);
+}
+
 /**
  * Get cached repositories if available and not expired
  */
 function getCachedRepositories(): Repository[] | null {
   const cache = getCacheService();
-  const cached = cache.get<Repository[]>(CACHE_KEYS.REPOSITORIES);
-  return cached;
+  return cache.get<Repository[]>(CACHE_KEYS.REPOSITORIES, getTokenCacheKey());
 }
 
 /**
@@ -157,7 +167,7 @@ function getCachedRepositories(): Repository[] | null {
  */
 function cacheRepositories(repositories: Repository[]): void {
   const cache = getCacheService();
-  cache.set(CACHE_KEYS.REPOSITORIES, undefined, repositories, 'repositories');
+  cache.set(CACHE_KEYS.REPOSITORIES, getTokenCacheKey(), repositories, 'repositories');
 }
 
 /**
@@ -165,7 +175,7 @@ function cacheRepositories(repositories: Repository[]): void {
  */
 function invalidateRepositoryCache(): void {
   const cache = getCacheService();
-  cache.invalidateRepositories();
+  cache.invalidate(CACHE_KEYS.REPOSITORIES, getTokenCacheKey());
 }
 
 // ============================================

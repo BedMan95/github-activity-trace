@@ -249,6 +249,44 @@ function createServiceErrorResponse(message: string, status: number = 500): Next
 // Commit Fetching Logic
 // ============================================
 
+interface UserDetails {
+  login?: string;
+  name?: string;
+  emails?: Set<string>;
+}
+
+function isAuthorMatch(
+  commit: Commit,
+  authorFilter?: string,
+  userDetails?: UserDetails
+): boolean {
+  if (!authorFilter) return true;
+  const target = authorFilter.toLowerCase().trim();
+  if (!target) return true;
+
+  const authorLogin = (commit.authorLogin || '').toLowerCase();
+  const authorName = (commit.authorName || '').toLowerCase();
+  const authorEmail = (commit.authorEmail || '').toLowerCase();
+  const fallbackAuthor = (commit.author || '').toLowerCase();
+
+  // If filtering for the authenticated user, match against user's login, emails, or name
+  if (userDetails && userDetails.login && target === userDetails.login.toLowerCase()) {
+    if (authorLogin && authorLogin === userDetails.login.toLowerCase()) return true;
+    if (authorEmail && userDetails.emails?.has(authorEmail)) return true;
+    if (authorName && userDetails.name && authorName === userDetails.name.toLowerCase()) return true;
+    if (fallbackAuthor && fallbackAuthor === userDetails.login.toLowerCase()) return true;
+    return false;
+  }
+
+  // Generic author filter (e.g. from query param ?author=xxx)
+  return (
+    authorLogin === target ||
+    authorEmail === target ||
+    authorName.includes(target) ||
+    fallbackAuthor.includes(target)
+  );
+}
+
 /**
  * Fetches commits for a single repository
  */
@@ -281,15 +319,24 @@ async function fetchRepositoryCommits(
   const response = await service.getOctokit().repos.listCommits(params);
 
   // Transform to our Commit interface
-  return response.data.map(commit => ({
-    id: commit.sha,
-    repository: repoFullName,
-    message: commit.commit.message,
-    date: commit.commit.author?.date || commit.commit.committer?.date || '',
-    author: commit.commit.author?.name || commit.commit.committer?.name || 'Unknown',
-    sha: commit.sha,
-    url: commit.html_url,
-  }));
+  return response.data.map(commit => {
+    const authorLogin = commit.author?.login || commit.committer?.login || '';
+    const authorName = commit.commit.author?.name || commit.commit.committer?.name || '';
+    const authorEmail = commit.commit.author?.email || commit.commit.committer?.email || '';
+
+    return {
+      id: commit.sha,
+      repository: repoFullName,
+      message: commit.commit.message,
+      date: commit.commit.author?.date || commit.commit.committer?.date || '',
+      author: authorLogin || authorName || 'Unknown',
+      authorLogin: authorLogin || undefined,
+      authorName: authorName || undefined,
+      authorEmail: authorEmail || undefined,
+      sha: commit.sha,
+      url: commit.html_url,
+    };
+  });
 }
 
 /**
@@ -303,13 +350,14 @@ async function fetchCommitsFromRepositories(
   page: number,
   startDate?: string,
   endDate?: string,
-  authorFilter?: string
+  authorFilter?: string,
+  userDetails?: UserDetails
 ): Promise<Commit[]> {
   const allCommits: Commit[] = [];
 
   // Use concurrent request limiting (max 5 concurrent per Requirement 2.1)
   const semaphore = { count: 0, maxConcurrent: MAX_CONCURRENT_REQUESTS, waiting: [] as (() => void)[] };
-  
+
   const fetchWithLimit = async (repo: Repository): Promise<void> => {
     return new Promise((resolve) => {
       // Acquire semaphore
@@ -338,11 +386,11 @@ async function fetchCommitsFromRepositories(
   // Create fetch promises for all repositories
   const fetchPromises = repositories.map(async (repo) => {
     await fetchWithLimit(repo);
-    
+
     try {
-      const commits = await fetchRepositoryCommits(service, repo.full_name, perPage, page);
+      const commits = await fetchRepositoryCommits(service, repo.full_name, perPage, page, authorFilter);
       cacheCommits(repo.full_name, commits);
-      
+
       // Apply date range filter (Requirement 2.2)
       let filteredCommits = commits;
       if (startDate) {
@@ -353,15 +401,12 @@ async function fetchCommitsFromRepositories(
         const end = new Date(endDate).getTime() + (24 * 60 * 60 * 1000); // Include full end day
         filteredCommits = filteredCommits.filter(c => new Date(c.date).getTime() < end);
       }
-      
+
       // Apply author filter (Requirement 2.3)
       if (authorFilter) {
-        const authorLower = authorFilter.toLowerCase();
-        filteredCommits = filteredCommits.filter(c => 
-          c.author.toLowerCase().includes(authorLower)
-        );
+        filteredCommits = filteredCommits.filter(c => isAuthorMatch(c, authorFilter, userDetails));
       }
-      
+
       allCommits.push(...filteredCommits);
     } catch (error) {
       // Log error but continue with other repositories
@@ -378,12 +423,23 @@ async function fetchCommitsFromRepositories(
 // Cache Functions
 // ============================================
 
+function getTokenCacheKey(): string {
+  const token = process.env.GITHUB_TOKEN || '';
+  if (!token) return 'default';
+  let hash = 0;
+  for (let i = 0; i < token.length; i++) {
+    hash = (hash << 5) - hash + token.charCodeAt(i);
+    hash |= 0;
+  }
+  return String(hash);
+}
+
 /**
  * Gets cached commits for a specific repository if available
  */
 function getCachedCommits(repoName: string): Commit[] | null {
   const cache = getCacheService();
-  return cache.get<Commit[]>(CACHE_KEYS.COMMITS, repoName);
+  return cache.get<Commit[]>(CACHE_KEYS.COMMITS, `${getTokenCacheKey()}:${repoName}`);
 }
 
 /**
@@ -391,7 +447,7 @@ function getCachedCommits(repoName: string): Commit[] | null {
  */
 function cacheCommits(repoName: string, commits: Commit[]): void {
   const cache = getCacheService();
-  cache.set(CACHE_KEYS.COMMITS, repoName, commits, 'commits');
+  cache.set(CACHE_KEYS.COMMITS, `${getTokenCacheKey()}:${repoName}`, commits, 'commits');
 }
 
 /**
@@ -400,7 +456,7 @@ function cacheCommits(repoName: string, commits: Commit[]): void {
 function invalidateCommitCache(repoName?: string): void {
   const cache = getCacheService();
   if (repoName) {
-    cache.invalidate(CACHE_KEYS.COMMITS, repoName);
+    cache.invalidate(CACHE_KEYS.COMMITS, `${getTokenCacheKey()}:${repoName}`);
   } else {
     cache.invalidateCommits();
   }
@@ -411,7 +467,7 @@ function invalidateCommitCache(repoName?: string): void {
  */
 function getCachedRepositories(): Repository[] | null {
   const cache = getCacheService();
-  return cache.get<Repository[]>(CACHE_KEYS.REPOSITORIES);
+  return cache.get<Repository[]>(CACHE_KEYS.REPOSITORIES, getTokenCacheKey());
 }
 
 /**
@@ -419,7 +475,7 @@ function getCachedRepositories(): Repository[] | null {
  */
 function cacheRepositories(repositories: Repository[]): void {
   const cache = getCacheService();
-  cache.set(CACHE_KEYS.REPOSITORIES, undefined, repositories, 'repositories');
+  cache.set(CACHE_KEYS.REPOSITORIES, getTokenCacheKey(), repositories, 'repositories');
 }
 
 // ============================================
@@ -479,8 +535,30 @@ export async function GET(
     const service = createGitHubService();
 
     // Resolve authenticated user to filter commits to user's activity
-    const authenticatedUser = await service.getOctokit().users.getAuthenticated().catch(() => null);
-    const effectiveAuthor = author || authenticatedUser?.data?.login || undefined;
+    const [authenticatedUser, userEmailsRes] = await Promise.all([
+      service.getOctokit().users.getAuthenticated().catch(() => null),
+      service.getOctokit().users.listEmailsForAuthenticatedUser().catch(() => null),
+    ]);
+
+    const userLogin = authenticatedUser?.data?.login;
+    const userName = authenticatedUser?.data?.name || undefined;
+    const userEmails = new Set<string>();
+    if (authenticatedUser?.data?.email) {
+      userEmails.add(authenticatedUser.data.email.toLowerCase());
+    }
+    if (userEmailsRes?.data && Array.isArray(userEmailsRes.data)) {
+      for (const e of userEmailsRes.data) {
+        if (e.email) userEmails.add(e.email.toLowerCase());
+      }
+    }
+
+    const userDetails: UserDetails = {
+      login: userLogin,
+      name: userName,
+      emails: userEmails,
+    };
+
+    const effectiveAuthor = author || userLogin || undefined;
 
     // If specific repository (or multiple repositories) is requested
     if (repoFilter) {
@@ -518,11 +596,7 @@ export async function GET(
         filtered = filtered.filter(c => new Date(c.date).getTime() < end);
       }
       if (effectiveAuthor) {
-        const authorLower = effectiveAuthor.toLowerCase();
-        filtered = filtered.filter(c =>
-          c.author.toLowerCase().includes(authorLower) ||
-          (authenticatedUser?.data?.login && authorLower === authenticatedUser.data.login.toLowerCase())
-        );
+        filtered = filtered.filter(c => isAuthorMatch(c, effectiveAuthor, userDetails));
       }
 
       filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -629,8 +703,7 @@ export async function GET(
           filtered = filtered.filter(c => new Date(c.date).getTime() < end);
         }
         if (effectiveAuthor) {
-          const authorLower = effectiveAuthor.toLowerCase();
-          filtered = filtered.filter(c => c.author.toLowerCase().includes(authorLower));
+          filtered = filtered.filter(c => isAuthorMatch(c, effectiveAuthor, userDetails));
         }
         cachedCommitsList.push(...filtered);
       } else {
@@ -648,7 +721,8 @@ export async function GET(
           pageNum,
           startDate,
           endDate,
-          effectiveAuthor
+          effectiveAuthor,
+          userDetails
         )
       : [];
 

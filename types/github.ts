@@ -24,6 +24,9 @@ export interface Commit {
   author: string;
   sha: string;
   url: string;
+  authorLogin?: string;
+  authorName?: string;
+  authorEmail?: string;
 }
 
 /**

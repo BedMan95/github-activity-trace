@@ -171,25 +171,21 @@ export interface FetchAllCommitsResult {
  */
 function transformCommit(
   repoFullName: string,
-  ghCommit: {
-    sha: string;
-    commit: {
-      message: string;
-      author: {
-        date: string;
-        name: string;
-        email: string;
-      };
-    };
-    html_url: string;
-  }
+  ghCommit: any
 ): Commit {
+  const authorLogin = ghCommit.author?.login || ghCommit.committer?.login || '';
+  const authorName = ghCommit.commit?.author?.name || ghCommit.commit?.committer?.name || '';
+  const authorEmail = ghCommit.commit?.author?.email || ghCommit.commit?.committer?.email || '';
+
   return {
     id: ghCommit.sha,
     repository: repoFullName,
-    message: ghCommit.commit.message,
-    date: ghCommit.commit.author.date,
-    author: ghCommit.commit.author.name,
+    message: ghCommit.commit?.message || '',
+    date: ghCommit.commit?.author?.date || ghCommit.commit?.committer?.date || '',
+    author: authorLogin || authorName || 'Unknown',
+    authorLogin: authorLogin || undefined,
+    authorName: authorName || undefined,
+    authorEmail: authorEmail || undefined,
     sha: ghCommit.sha.substring(0, 7),
     url: ghCommit.html_url,
   };
