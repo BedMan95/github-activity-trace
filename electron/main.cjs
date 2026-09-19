@@ -72,6 +72,8 @@ function startProductionServer() {
 }
 
 function createWindow() {
+  const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 850,
@@ -79,6 +81,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: '#0a0a0a',
     title: 'GitHub Activity Trace',
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

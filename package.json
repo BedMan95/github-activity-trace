@@ -60,6 +60,7 @@
     },
     "files": [
       "electron/**/*",
+      "assets/**/*",
       "!node_modules/**"
     ],
     "extraResources": [
@@ -79,6 +80,7 @@
       }
     ],
     "win": {
+      "icon": "assets/icon.ico",
       "target": [
         "nsis"
       ]
@@ -88,6 +90,7 @@
       "allowToChangeInstallationDirectory": true
     },
     "linux": {
+      "icon": "assets/icon.png",
       "target": [
         "tar.gz",
         "zip"
