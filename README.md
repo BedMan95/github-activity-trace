@@ -1,13 +1,17 @@
 # GitHub Activity Trace
 
-Aplikasi pemantau dan perangkum riwayat komit GitHub pribadi dan organisasi untuk kebutuhan pelaporan kerja berkala.
+Aplikasi desktop dan web pemantau serta perangkum riwayat komit GitHub pribadi dan organisasi untuk kebutuhan pelaporan kerja berkala.
+
+![GitHub Activity Trace](assets/logo/logo.png)
 
 ## Fitur Utama
 
+- **Aplikasi Desktop Mandiri (Electron)**: Tersedia untuk Windows (Installer & Portable) dan Linux (Archive & Unpacked).
+- **Pengaturan Langsung dari Aplikasi**: Masukkan dan ubah GitHub Token dan konfigurasi OpenAI langsung melalui modal **Settings** (ikon ⚙️) tanpa perlu mengedit file `.env.local` secara manual. Dilengkapi tombol **Test Connection**.
 - **Filter Penulis Otomatis**: Hanya menampilkan repositori dan komit yang dibuat oleh akun pengguna terautentikasi (mengabaikan komit anggota tim lain di organisasi).
 - **Filter Pemilik Repositori**: Filter cepat berdasarkan akun pribadi atau organisasi tempat berkontribusi.
 - **Rentang Tanggal**: Memfilter aktivitas komit berdasarkan periode tanggal mulai dan selesai.
-- **Paginasi Tabel**: Navigasi data 10 baris per halaman dengan antarmuka responsif setinggi viewport (`100vh`) dan header tabel tetap (*sticky*).
+- **Paginasi Tabel**: Navigasi data responsif setinggi viewport (`100vh`) dengan header tabel tetap (*sticky*).
 - **Terjemahan Bahasa Indonesia**: Toggle langsung di tabel untuk menerjemahkan pesan komit ke Bahasa Indonesia.
 - **Salin Teks Praktis**: Tombol salin per baris saat *hover* dan tombol "Salin Semua" untuk seluruh halaman.
 - **Ekspor Excel & Rangkuman AI**:
@@ -18,51 +22,74 @@ Aplikasi pemantau dan perangkum riwayat komit GitHub pribadi dan organisasi untu
 ## Kebutuhan Sistem
 
 - Node.js 18.17+ / 20+
-- Token GitHub Personal Access Token (PAT)
+- GitHub Personal Access Token (PAT) dengan scope: `repo`, `user:email`, `read:user`
 - (Opsional) Kredensial API OpenAI-compatible untuk fitur rangkuman AI
 
-## Konfigurasi Lingkungan (`.env.local`)
+## Konfigurasi Pengaturan
 
-Salin file template atau buat file `.env.local` di direktori utama:
+Konfigurasi dapat diatur langsung di dalam aplikasi melalui tombol **Settings (⚙️)** di header kanan atas:
 
-```env
-# GitHub Personal Access Token (Wajib)
-# Scopes: repo, user:email, read:user
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+- **GitHub Personal Access Token**: Token akun GitHub Anda.
+- **OpenAI API Key** *(Opsional)*: API Key untuk fitur rangkuman tugas otomatis.
+- **OpenAI Base URL** *(Opsional)*: Base URL (default: `https://api.openai.com/v1`).
+- **OpenAI Model** *(Opsional)*: Model AI (default: `gpt-4o-mini`).
 
-# Port server (opsional, bawaan: 3002)
-PORT=3002
+*(Catatan: Aplikasi tetap mendukung konfigurasi melalui file `.env.local` sebagai fallback otomatis).*
 
-# Konfigurasi OpenAI-compatible untuk rangkuman tugas (Opsional)
-# Jika dikosongkan, tugas akan otomatis menggunakan daftar poin pesan komit
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
-OPENAI_MODEL=gpt-4o-mini
+## Mode Pengembangan
+
+### 1. Menjalankan Desktop App (Electron Dev):
+```bash
+npm run electron:dev
+```
+Menjalankan Next.js server lokal pada port `3002` dan membuka jendela Electron dengan hot-reload aktif.
+
+### 2. Menjalankan Web App (Browser):
+```bash
+npm run dev
+```
+Buka browser di `http://localhost:3002`.
+
+### 3. Menjalankan Pengujian (Unit Tests):
+```bash
+npm test
 ```
 
-## Menjalankan Proyek
+## Build & Distribusi Aplikasi Desktop
 
-1. **Instal dependensi**:
-   ```bash
-   npm install
-   ```
+Seluruh hasil build desktop akan tersimpan di direktori `dist-desktop/`.
 
-2. **Jalankan mode pengembangan**:
-   ```bash
-   npm run dev
-   ```
-   Akses aplikasi di browser pada `http://localhost:3000` (atau sesuai `PORT` yang disetel).
+### 1. Build untuk Windows:
+```bash
+# Menghasilkan installer (.exe) dan folder portable:
+npm run build:electron
+```
+Hasil:
+- **Installer Windows**: `dist-desktop/GitHub Activity Trace Setup 1.0.0.exe`
+- **Portable / Unpacked**: `dist-desktop/win-unpacked/GitHub Activity Trace.exe`
 
-3. **Build untuk produksi**:
-   ```bash
-   npm run build
-   npm run start
-   ```
+### 2. Build untuk Linux:
+```bash
+# Menghasilkan archive portable (.tar.gz dan .zip):
+npm run build:electron:linux
 
-4. **Menjalankan pengujian (Unit Tests)**:
-   ```bash
-   npm test
-   ```
+# Menghasilkan folder unpacked (binary native Linux):
+npm run build:electron:linux:dir
+
+# Menghasilkan paket Debian (.deb) & AppImage (di Linux/WSL/Docker):
+npm run build:electron:linux:pkg
+```
+Hasil:
+- **Archive Portable**: `dist-desktop/github-activity-trace-1.0.0.tar.gz` dan `github-activity-trace-1.0.0.zip`
+- **Unpacked**: `dist-desktop/linux-unpacked/github-activity-trace`
+
+## Menjalankan Build Web Produksi (Opsional)
+
+Jika ingin menjalankan sebagai web server murni:
+```bash
+npm run build
+npm run start
+```
 
 ## Lisensi
 
