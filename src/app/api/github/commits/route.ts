@@ -15,6 +15,7 @@
 import { NextResponse } from 'next/server';
 import { createGitHubService, GitHubApiError, MAX_CONCURRENT_REQUESTS } from '@/services/github';
 import { getCacheService, CACHE_KEYS } from '@/app/services/cache';
+import { getEffectiveGitHubToken } from '@/../lib/settings';
 import type { Commit, Repository, RateLimitInfo } from '@/types/github';
 import type { CommitsResponse, ApiErrorResponse } from '@/types/api';
 
@@ -424,7 +425,7 @@ async function fetchCommitsFromRepositories(
 // ============================================
 
 function getTokenCacheKey(): string {
-  const token = process.env.GITHUB_TOKEN || '';
+  const token = getEffectiveGitHubToken() || process.env.GITHUB_TOKEN || '';
   if (!token) return 'default';
   let hash = 0;
   for (let i = 0; i < token.length; i++) {

@@ -7,6 +7,8 @@
  * @file env.ts
  */
 
+import { getEffectiveGitHubToken } from './settings';
+
 /**
  * Interface for environment variable configuration
  */
@@ -27,45 +29,38 @@ const APPLICATION_NAME = 'GitHub Commit Activity Tracker';
 
 /**
  * Checks if all required environment variables are set
- * 
+ *
  * @throws {Error} If any required environment variable is missing
  */
 export function validateEnvironment(): void {
-  const missingVars: string[] = [];
-
-  for (const envVar of REQUIRED_ENV_VARS) {
-    if (!process.env[envVar]) {
-      missingVars.push(envVar);
-    }
-  }
-
-  if (missingVars.length > 0) {
-    const errorMessage = generateErrorMessage(missingVars);
+  const token = getEffectiveGitHubToken() || process.env.GITHUB_TOKEN;
+  if (!token) {
+    const errorMessage = generateErrorMessage(['GITHUB_TOKEN']);
     throw new Error(errorMessage);
   }
 }
 
 /**
- * Gets the GitHub token from environment variables
- * 
+ * Gets the GitHub token from environment variables or settings
+ *
  * @returns {string | undefined} The GitHub token if set, undefined otherwise
  */
 export function getGitHubToken(): string | undefined {
-  return process.env.GITHUB_TOKEN;
+  return getEffectiveGitHubToken() || process.env.GITHUB_TOKEN;
 }
 
 /**
  * Validates that the GitHub token is present and not empty
- * 
+ *
  * @throws {Error} If the GitHub token is not configured or empty
  */
 export function validateGitHubToken(): void {
-  const token = process.env.GITHUB_TOKEN;
+  const token = getEffectiveGitHubToken() || process.env.GITHUB_TOKEN;
 
   if (token === undefined || token === null) {
     throw new Error(
       `${APPLICATION_NAME}: GitHub token is not configured. ` +
-      'Please set the GITHUB_TOKEN environment variable. ' +
+      'Please set the GITHUB_TOKEN environment variable or configure it in Settings. ' +
       'Token must have the following scopes: repo, user:email, read:user'
     );
   }
@@ -73,7 +68,7 @@ export function validateGitHubToken(): void {
   if (token.trim() === '') {
     throw new Error(
       `${APPLICATION_NAME}: GitHub token is configured but empty. ` +
-      'Please set a valid GitHub Personal Access Token in the GITHUB_TOKEN environment variable. ' +
+      'Please set a valid GitHub Personal Access Token in the GITHUB_TOKEN environment variable or in Settings. ' +
       'Token must have the following scopes: repo, user:email, read:user'
     );
   }

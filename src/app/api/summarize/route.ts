@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getEffectiveOpenAIConfig } from '@/../lib/settings';
 
 interface GroupedItem {
   date: string;
@@ -14,10 +15,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ summaries: {} });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    const rawBaseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-    const baseUrl = rawBaseUrl.replace(/\/+$/, '');
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const { apiKey, baseUrl, model } = getEffectiveOpenAIConfig();
 
     // If no OpenAI key is configured, fallback to bullet list combination
     if (!apiKey) {

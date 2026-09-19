@@ -11,6 +11,7 @@
 
 import { Octokit } from '@octokit/rest';
 import type { RateLimitInfo } from '../types/github';
+import { getEffectiveGitHubToken } from '../lib/settings';
 
 // ============================================
 // Constants
@@ -405,8 +406,8 @@ class GitHubApiError extends Error {
  * @throws Error if GITHUB_TOKEN is not configured
  */
 export function createGitHubService(): GitHubService {
-  const token = process.env.GITHUB_TOKEN;
-  
+  const token = getEffectiveGitHubToken() || process.env.GITHUB_TOKEN;
+
   if (!token) {
     throw new Error(
       'GITHUB_TOKEN environment variable is not configured. ' +

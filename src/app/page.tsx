@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ErrorDisplay } from '@/components/ErrorDisplay';
 import { exportDailySummariesToExcel } from '@/lib/excel';
 import { formatDateDDMMYYYY } from '@/types/formatting';
+import { SettingsModal } from '@/components/SettingsModal';
 
 export default function Home() {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -24,6 +25,9 @@ export default function Home() {
   const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
   const [rateLimitWarning, setRateLimitWarning] = useState<boolean>(false);
   const [rateLimitResetTime, setRateLimitResetTime] = useState<string | null>(null);
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasNoToken, setHasNoToken] = useState(false);
 
   // Stats calculation
   const stats = useMemo(() => {
@@ -92,6 +96,9 @@ export default function Home() {
         setErrorType('rate_limit');
       } else {
         setErrorType('auth');
+        if (data.error === 'TOKEN_NOT_CONFIGURED' || data.error === 'INVALID_TOKEN') {
+          setHasNoToken(true);
+        }
       }
     } else if (status === 429) {
       setErrorType('rate_limit');
@@ -115,10 +122,28 @@ export default function Home() {
     }
   };
 
+  const handleSettingsSaved = async () => {
+    setHasNoToken(false);
+    setError(null);
+    setIsLoading(true);
+    await fetchRepositories();
+    await fetchCommits(selectedRepos, startDate, endDate);
+    setIsLoading(false);
+  };
+
   // Initial load
   useEffect(() => {
     const init = async () => {
       setIsLoading(true);
+      try {
+        const settingsRes = await fetch('/api/settings');
+        const settingsData = await settingsRes.json();
+        if (!settingsData.settings?.githubToken) {
+          setHasNoToken(true);
+        }
+      } catch {
+        // ignore
+      }
       await fetchRepositories();
       await fetchCommits();
       setIsLoading(false);
@@ -212,7 +237,7 @@ export default function Home() {
           </h1>
         </div>
 
-        {/* Minimal metrics */}
+        {/* Minimal metrics & Settings */}
         <div className="flex items-center gap-6 text-xs text-neutral-500 dark:text-neutral-400">
           <div className="flex flex-col sm:items-end">
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase">Commits</span>
@@ -228,8 +253,43 @@ export default function Home() {
               <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{remainingQuota}</span>
             </div>
           )}
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            aria-label="Pengaturan"
+            title="Pengaturan"
+            className="p-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 transition cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.75}
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
         </div>
       </header>
+
+      {hasNoToken && (
+        <div className="shrink-0 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-xs text-blue-600 dark:text-blue-400">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>GitHub Personal Access Token belum dikonfigurasi. Silakan atur token Anda untuk memuat commit.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="shrink-0 font-medium px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition cursor-pointer"
+          >
+            Buka Pengaturan
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="shrink-0">
@@ -265,6 +325,12 @@ export default function Home() {
         {isLoading && <LoadingSpinner overlay label="Loading commits..." />}
         <ActivityTable commits={commits} isLoading={isLoading} />
       </section>
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSaved={handleSettingsSaved}
+      />
     </main>
   );
 }

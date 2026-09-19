@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 import { createGitHubService, GitHubApiError } from '@/services/github';
 import { getCacheService, CACHE_KEYS } from '@/app/services/cache';
+import { getEffectiveGitHubToken } from '@/../lib/settings';
 import type { Repository, RateLimitInfo } from '@/types/github';
 import type { RepositoriesResponse, ApiErrorResponse } from '@/types/api';
 
@@ -144,7 +145,7 @@ function createServiceErrorResponse(message: string, status: number = 500): Next
 // ============================================
 
 function getTokenCacheKey(): string {
-  const token = process.env.GITHUB_TOKEN || '';
+  const token = getEffectiveGitHubToken() || process.env.GITHUB_TOKEN || '';
   if (!token) return 'default';
   let hash = 0;
   for (let i = 0; i < token.length; i++) {
